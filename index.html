@@ -436,6 +436,13 @@
       <div style="font-size:9px;color:var(--muted);margin-top:3px">local: http://localhost:11434/api/chat | cloud: https://api.ollama.cloud/v1/chat/completions</div>
     </div>
     <div>
+      <label style="display:flex;align-items:center;gap:6px">
+        <input type="checkbox" id="cfg-demo" style="width:auto">
+        <span>Demo Mode (no API needed)</span>
+      </label>
+      <div style="font-size:9px;color:var(--muted);margin-top:3px">mock responses for testing UI</div>
+    </div>
+    <div>
       <label>Mood state (shown in avatar)</label>
       <select id="cfg-mood">
         <option value="happy">happy</option>
@@ -472,6 +479,7 @@ const DEFAULT_CONFIG = {
   model: 'llama2',
   apiKey: '',
   apiEndpoint: 'http://localhost:11434/api/chat',
+  demoMode: true,
   mood: 'happy',
 };
 
@@ -714,13 +722,63 @@ function parseResponse(raw) {
 }
 
 // ════════════════════════════════════════════════════════
+//  DEMO RESPONSES (for testing without API)
+// ════════════════════════════════════════════════════════
+function getDemoResponse(userMessage) {
+  const lower = userMessage.toLowerCase();
+  
+  const responses = [
+    {
+      keywords: ['hello', 'hi', 'hey'],
+      response: 'Hey there! I\'m running in demo mode, so I\'m just a chatbot simulator. To connect a real AI, click ⚙ persona and set up your Ollama or API endpoint. What would you like to try?'
+    },
+    {
+      keywords: ['python', 'code', 'write'],
+      response: 'I can definitely help with code! In real mode (with Ollama), I could write full Python scripts, debug code, and build apps. Right now I\'m in demo mode, but the structure is ready to go. Want to set up a real API?'
+    },
+    {
+      keywords: ['joke', 'funny'],
+      response: '🤖 Why did the AI go to school? Because it wanted to improve its neural network! ...okay, that was terrible. I\'ll be better with a real language model!'
+    },
+    {
+      keywords: ['model', 'switch'],
+      response: 'To switch models in demo mode, just tell me! In real mode (with API set up), I\'d actually switch to whatever LLM you want. For now I can pretend though. 😄'
+    },
+    {
+      keywords: ['memory'],
+      response: 'I have a memory system! When you give me real API access, I\'ll remember important things about you between conversations. Right now it\'s ready but empty since I\'m in demo mode.'
+    },
+    {
+      keywords: ['demo', 'test'],
+      response: 'Yep, I\'m in demo mode! This lets you test the UI without needing Ollama or any API running. Click ⚙ persona and turn off "Demo Mode" to use a real API. Want help setting that up?'
+    },
+  ];
+
+  for (const item of responses) {
+    if (item.keywords.some(kw => lower.includes(kw))) {
+      return item.response;
+    }
+  }
+
+  return `That's interesting! I'm in demo mode right now, so I can't give real responses. To unlock my full capabilities, click ⚙ persona, set up your API endpoint (local Ollama or Ollama Cloud), and turn off "Demo Mode". Then I can actually think and respond to anything you ask!`;
+}
+
+// ════════════════════════════════════════════════════════
 //  OLLAMA API CALL
 // ════════════════════════════════════════════════════════
 async function callOllama(userMessage) {
   conversation.push({ role: 'user', content: userMessage });
 
+  // Demo mode: return mock response
+  if (config.demoMode) {
+    const raw = getDemoResponse(userMessage);
+    conversation.push({ role: 'assistant', content: raw });
+    return raw;
+  }
+
+  // Real API mode
   if (!config.apiKey && !config.apiEndpoint.includes('localhost')) {
-    throw new Error('No API key set. Click ⚙ persona and enter your Ollama Cloud API key.');
+    throw new Error('No API key set. Click ⚙ persona and enter your API key, or enable Demo Mode.');
   }
 
   const payload = {
@@ -743,11 +801,18 @@ async function callOllama(userMessage) {
   }
 
   try {
+    console.log('Fetching from:', endpoint);
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000);
+    
     const resp = await fetch(endpoint, {
       method: 'POST',
       headers,
       body: JSON.stringify(payload),
+      signal: controller.signal,
     });
+
+    clearTimeout(timeoutId);
 
     if (!resp.ok) {
       const err = await resp.text().catch(() => resp.statusText);
@@ -767,8 +832,11 @@ async function callOllama(userMessage) {
     conversation.push({ role: 'assistant', content: raw });
     return raw;
   } catch (e) {
-    console.error('Fetch error:', e);
-    throw e;
+    console.error('Fetch error details:', e);
+    if (e.name === 'AbortError') {
+      throw new Error('Request timeout (10s). Check if Ollama is running on ' + endpoint);
+    }
+    throw new Error(`Connection failed: ${e.message}. Make sure Ollama is running, or enable Demo Mode in settings.`);
   }
 }
 
@@ -816,6 +884,7 @@ function openModal() {
   document.getElementById('cfg-model').value = config.model;
   document.getElementById('cfg-apikey').value = config.apiKey || '';
   document.getElementById('cfg-endpoint').value = config.apiEndpoint || 'http://localhost:11434/api/chat';
+  document.getElementById('cfg-demo').checked = config.demoMode;
   document.getElementById('cfg-mood').value = config.mood;
   document.getElementById('modal-overlay').classList.add('open');
 }
@@ -828,6 +897,7 @@ function saveModal() {
   config.model = document.getElementById('cfg-model').value.trim() || DEFAULT_CONFIG.model;
   config.apiKey = document.getElementById('cfg-apikey').value.trim();
   config.apiEndpoint = document.getElementById('cfg-endpoint').value.trim() || DEFAULT_CONFIG.apiEndpoint;
+  config.demoMode = document.getElementById('cfg-demo').checked;
   config.mood = document.getElementById('cfg-mood').value;
   saveConfig();
   renderPet();
@@ -852,8 +922,10 @@ function init() {
   renderEnvTabs();
 
   // First boot greeting
-  if (!config.apiKey && !config.apiEndpoint.includes('localhost')) {
-    addMessage('system', `No API key set! Click ⚙ persona → enter your Ollama Cloud API key to get started.\n\nGet one at: ollama.com → Settings → API Keys`);
+  if (config.demoMode) {
+    addMessage('system', `[DEMO MODE] No API configured. I\'m running in demo mode with mock responses. Click ⚙ persona to set up a real API.`);
+  } else if (!config.apiKey && !config.apiEndpoint.includes('localhost')) {
+    addMessage('system', `No API key set! Click ⚙ persona → enter your Ollama Cloud API key, or enable Demo Mode.`);
   }
   addMessage('assistant', `Hiya! I'm ${config.name}! ✦ Running on ${config.model}.\n\nI can chat, code, build apps, and even redesign my own interface. Try asking me to:\n  • "write a Python script to…"\n  • "switch to a different model"\n  • "redesign your UI with a cyberpunk theme"\n  • "remember that my name is…"\n\nWhat are we working on today?`);
 

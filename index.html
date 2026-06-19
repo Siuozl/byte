@@ -431,6 +431,11 @@
       <div style="font-size:9px;color:var(--muted);margin-top:3px">get yours at ollama.com → Settings → API Keys</div>
     </div>
     <div>
+      <label>API Endpoint</label>
+      <input type="text" id="cfg-endpoint" value="https://api.ollama.cloud/v1/chat/completions">
+      <div style="font-size:9px;color:var(--muted);margin-top:3px">e.g., https://api.ollama.cloud/v1/chat/completions or http://localhost:11434/api/chat</div>
+    </div>
+    <div>
       <label>Mood state (shown in avatar)</label>
       <select id="cfg-mood">
         <option value="happy">happy</option>
@@ -466,6 +471,7 @@ const DEFAULT_CONFIG = {
   persona: `You are BYTE, a cheerful, enthusiastic AI companion. You are warm and encouraging, but also genuinely intelligent and capable. You can write code, debug programs, build apps, and solve hard problems — all while keeping a playful energy. You never dumb things down unless asked.`,
   model: 'gpt-oss:20b-cloud',
   apiKey: '',
+  apiEndpoint: 'https://api.ollama.cloud/v1/chat/completions',
   mood: 'happy',
 };
 
@@ -726,22 +732,33 @@ async function callOllama(userMessage) {
     stream: false,
   };
 
-  const resp = await fetch('https://ollama.com/api/chat', {
+  const endpoint = config.apiEndpoint || 'https://api.ollama.cloud/v1/chat/completions';
+  const headers = {
+    'Content-Type': 'application/json',
+  };
+  
+  // Add Authorization header with Bearer token format
+  if (config.apiKey) {
+    headers['Authorization'] = config.apiKey.startsWith('Bearer ') ? config.apiKey : `Bearer ${config.apiKey}`;
+  }
+
+  const resp = await fetch(endpoint, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': config.apiKey,
-    },
+    headers,
     body: JSON.stringify(payload),
   });
 
   if (!resp.ok) {
     const err = await resp.text().catch(() => resp.statusText);
-    throw new Error(`Ollama error ${resp.status}: ${err}`);
+    throw new Error(`API error ${resp.status}: ${err}`);
   }
 
   const data = await resp.json();
+  // Handle both OpenAI-format and Ollama-format responses
   const raw = data.message?.content || data.choices?.[0]?.message?.content || '';
+  if (!raw) {
+    throw new Error('Empty response from API');
+  }
   conversation.push({ role: 'assistant', content: raw });
   return raw;
 }
@@ -789,6 +806,7 @@ function openModal() {
   document.getElementById('cfg-persona').value = config.persona;
   document.getElementById('cfg-model').value = config.model;
   document.getElementById('cfg-apikey').value = config.apiKey || '';
+  document.getElementById('cfg-endpoint').value = config.apiEndpoint || 'https://api.ollama.cloud/v1/chat/completions';
   document.getElementById('cfg-mood').value = config.mood;
   document.getElementById('modal-overlay').classList.add('open');
 }
@@ -800,6 +818,7 @@ function saveModal() {
   config.persona = document.getElementById('cfg-persona').value.trim() || DEFAULT_CONFIG.persona;
   config.model = document.getElementById('cfg-model').value.trim() || DEFAULT_CONFIG.model;
   config.apiKey = document.getElementById('cfg-apikey').value.trim();
+  config.apiEndpoint = document.getElementById('cfg-endpoint').value.trim() || DEFAULT_CONFIG.apiEndpoint;
   config.mood = document.getElementById('cfg-mood').value;
   saveConfig();
   renderPet();

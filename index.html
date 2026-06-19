@@ -427,8 +427,8 @@
     </div>
     <div>
       <label>Ollama Cloud API Key</label>
-      <input type="password" id="cfg-apikey" placeholder="(optional for local Ollama)">
-      <div style="font-size:9px;color:var(--muted);margin-top:3px">leave blank for local Ollama, or get a cloud key at ollama.com → Settings → API Keys</div>
+      <input type="password" id="cfg-apikey" placeholder="(for local Ollama only)">
+      <div style="font-size:9px;color:var(--muted);margin-top:3px">⚠️ Ollama Cloud has CORS restrictions in browsers. Use local Ollama instead: <code style="background:#000;padding:2px 4px">ollama serve</code></div>
     </div>
     <div>
       <label>API Endpoint</label>
@@ -730,27 +730,31 @@ function getDemoResponse(userMessage) {
   const responses = [
     {
       keywords: ['hello', 'hi', 'hey'],
-      response: 'Hey there! I\'m running in demo mode, so I\'m just a chatbot simulator. To connect a real AI, click ⚙ persona and set up your Ollama or API endpoint. What would you like to try?'
+      response: 'Hey! I\'m in demo mode. To use real AI, you need Ollama running locally. Install it at ollama.ai, then run "ollama serve" and turn off demo mode. Ready?'
     },
     {
-      keywords: ['python', 'code', 'write'],
-      response: 'I can definitely help with code! In real mode (with Ollama), I could write full Python scripts, debug code, and build apps. Right now I\'m in demo mode, but the structure is ready to go. Want to set up a real API?'
+      keywords: ['python', 'code', 'write', 'script'],
+      response: 'I can help with code! In real mode (with local Ollama), I could write full Python scripts, debug, and build apps. Try setting up Ollama to unlock that.'
     },
     {
       keywords: ['joke', 'funny'],
-      response: '🤖 Why did the AI go to school? Because it wanted to improve its neural network! ...okay, that was terrible. I\'ll be better with a real language model!'
+      response: '🤖 Why did the AI apply for a job? It wanted to improve its neural net-work! (I\'m better with a real LLM though 😄)'
     },
     {
-      keywords: ['model', 'switch'],
-      response: 'To switch models in demo mode, just tell me! In real mode (with API set up), I\'d actually switch to whatever LLM you want. For now I can pretend though. 😄'
+      keywords: ['ollama', 'setup', 'install', 'local'],
+      response: '1. Go to ollama.ai\n2. Install Ollama\n3. Run: ollama pull llama2\n4. Start: ollama serve\n5. Click ⚙ persona → turn off Demo Mode\n6. Done! You\'ll have a real AI.'
+    },
+    {
+      keywords: ['cors', 'cloud', 'error'],
+      response: 'Ollama Cloud has CORS restrictions in browsers (security feature). Use local Ollama instead — it works perfectly and runs offline!'
     },
     {
       keywords: ['memory'],
-      response: 'I have a memory system! When you give me real API access, I\'ll remember important things about you between conversations. Right now it\'s ready but empty since I\'m in demo mode.'
+      response: 'I have a memory system! With real API access, I\'ll remember things about you. For now it\'s just a demo, but it\'s all ready to go.'
     },
     {
-      keywords: ['demo', 'test'],
-      response: 'Yep, I\'m in demo mode! This lets you test the UI without needing Ollama or any API running. Click ⚙ persona and turn off "Demo Mode" to use a real API. Want help setting that up?'
+      keywords: ['demo', 'test', 'mode'],
+      response: 'Yep, demo mode! This lets you test the UI. For real AI, install Ollama locally (ollama.ai), then disable demo mode in settings.'
     },
   ];
 
@@ -760,7 +764,7 @@ function getDemoResponse(userMessage) {
     }
   }
 
-  return `That's interesting! I'm in demo mode right now, so I can't give real responses. To unlock my full capabilities, click ⚙ persona, set up your API endpoint (local Ollama or Ollama Cloud), and turn off "Demo Mode". Then I can actually think and respond to anything you ask!`;
+  return `That's interesting! Right now I\'m in demo mode. To unlock real responses: install Ollama (ollama.ai), run "ollama serve", then disable demo mode here. Takes 2 minutes!`;
 }
 
 // ════════════════════════════════════════════════════════
@@ -923,11 +927,11 @@ function init() {
 
   // First boot greeting
   if (config.demoMode) {
-    addMessage('system', `[DEMO MODE] No API configured. I\'m running in demo mode with mock responses. Click ⚙ persona to set up a real API.`);
+    addMessage('system', `🤖 DEMO MODE: Mock responses only. To use real AI:\n\n1. Install Ollama: ollama.ai\n2. Run: ollama pull llama2\n3. Start: ollama serve\n4. Click ⚙ persona → turn off Demo Mode → Save\n\n(Ollama Cloud blocked by browser CORS — local Ollama works great!)`);
   } else if (!config.apiKey && !config.apiEndpoint.includes('localhost')) {
-    addMessage('system', `No API key set! Click ⚙ persona → enter your Ollama Cloud API key, or enable Demo Mode.`);
+    addMessage('system', `⚠️ No API configured. Make sure Ollama is running on ${config.apiEndpoint}`);
   }
-  addMessage('assistant', `Hiya! I'm ${config.name}! ✦ Running on ${config.model}.\n\nI can chat, code, build apps, and even redesign my own interface. Try asking me to:\n  • "write a Python script to…"\n  • "switch to a different model"\n  • "redesign your UI with a cyberpunk theme"\n  • "remember that my name is…"\n\nWhat are we working on today?`);
+  addMessage('assistant', `Hiya! I'm ${config.name}! ✦ ${config.demoMode ? '[DEMO MODE]' : 'Running on ' + config.model}\n\nTry asking me to:\n  • "write a Python script to…"\n  • "tell me a joke"\n  • "help me debug this code"\n  • "remember that my name is…"\n\nWhat's on your mind?`);
 
   // Events
   document.getElementById('send-btn').onclick = sendMessage;

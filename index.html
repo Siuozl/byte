@@ -1,0 +1,851 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BYTE — your AI companion</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0d0d0d;
+    --surface: #141414;
+    --border: #2a2a2a;
+    --accent: #00ff9f;
+    --accent2: #00bfff;
+    --muted: #555;
+    --text: #e0e0e0;
+    --text-dim: #888;
+    --danger: #ff4444;
+    --font-mono: 'Courier New', Courier, monospace;
+    --radius: 4px;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-mono);
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  /* ── TOP BAR ── */
+  #topbar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 12px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+    flex-shrink: 0;
+    flex-wrap: wrap;
+  }
+
+  #env-label {
+    font-size: 11px;
+    color: var(--muted);
+    margin-right: 2px;
+    white-space: nowrap;
+  }
+
+  .env-btn {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    padding: 2px 7px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--text-dim);
+    cursor: pointer;
+    border-radius: var(--radius);
+    white-space: nowrap;
+    transition: border-color .15s, color .15s;
+  }
+  .env-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .env-btn.active { border-color: var(--accent); color: var(--accent); background: rgba(0,255,159,.07); }
+
+  #title-chip {
+    margin-left: auto;
+    font-size: 12px;
+    color: var(--accent);
+    letter-spacing: .12em;
+    white-space: nowrap;
+  }
+
+  #model-display {
+    font-size: 10px;
+    color: var(--text-dim);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 2px 7px;
+    white-space: nowrap;
+  }
+
+  /* ── MAIN LAYOUT ── */
+  #main {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+  }
+
+  /* ── LEFT PANEL: pet + memory ── */
+  #left-panel {
+    width: 220px;
+    min-width: 160px;
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    flex-shrink: 0;
+  }
+
+  #pet-box {
+    padding: 14px 10px 10px;
+    border-bottom: 1px solid var(--border);
+    text-align: center;
+  }
+
+  #pet-ascii {
+    font-size: 11px;
+    line-height: 1.4;
+    color: var(--accent);
+    white-space: pre;
+    display: inline-block;
+    text-align: left;
+    transition: color .3s;
+  }
+
+  #pet-name {
+    font-size: 13px;
+    color: var(--accent);
+    margin-top: 6px;
+    letter-spacing: .1em;
+  }
+
+  #pet-mood-text {
+    font-size: 10px;
+    color: var(--text-dim);
+    margin-top: 2px;
+  }
+
+  #memory-panel {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .panel-header {
+    font-size: 10px;
+    color: var(--muted);
+    padding: 7px 10px 5px;
+    border-bottom: 1px solid var(--border);
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .panel-header button {
+    font-family: var(--font-mono);
+    font-size: 9px;
+    padding: 1px 6px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--muted);
+    cursor: pointer;
+    border-radius: var(--radius);
+  }
+  .panel-header button:hover { color: var(--accent); border-color: var(--accent); }
+
+  #memory-content {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px 10px;
+    font-size: 10px;
+    line-height: 1.6;
+    color: var(--text-dim);
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+
+  /* ── RIGHT: chat ── */
+  #chat-area {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  #messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .msg {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    max-width: 88%;
+  }
+
+  .msg.user { align-self: flex-end; align-items: flex-end; }
+  .msg.assistant { align-self: flex-start; align-items: flex-start; }
+
+  .msg-label {
+    font-size: 9px;
+    color: var(--muted);
+    letter-spacing: .08em;
+    text-transform: uppercase;
+  }
+
+  .msg-bubble {
+    padding: 8px 12px;
+    border-radius: var(--radius);
+    font-size: 12px;
+    line-height: 1.6;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+
+  .msg.user .msg-bubble {
+    background: rgba(0,191,255,.1);
+    border: 1px solid rgba(0,191,255,.3);
+    color: var(--text);
+  }
+
+  .msg.assistant .msg-bubble {
+    background: rgba(0,255,159,.06);
+    border: 1px solid rgba(0,255,159,.2);
+    color: var(--text);
+  }
+
+  .msg.system .msg-bubble {
+    background: rgba(255,68,68,.07);
+    border: 1px solid rgba(255,68,68,.2);
+    color: #ff8888;
+    font-size: 11px;
+    align-self: center;
+  }
+
+  .msg.system { align-self: center; align-items: center; max-width: 96%; }
+
+  /* thinking indicator */
+  #thinking {
+    display: none;
+    align-self: flex-start;
+    color: var(--accent);
+    font-size: 11px;
+    padding: 6px 0;
+    animation: blink 1s infinite;
+  }
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:.3} }
+
+  /* ── INPUT BAR ── */
+  #input-bar {
+    display: flex;
+    gap: 8px;
+    padding: 10px 14px;
+    border-top: 1px solid var(--border);
+    background: var(--surface);
+    flex-shrink: 0;
+  }
+
+  #user-input {
+    flex: 1;
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--text);
+    font-family: var(--font-mono);
+    font-size: 12px;
+    padding: 7px 10px;
+    resize: none;
+    outline: none;
+    line-height: 1.5;
+    transition: border-color .15s;
+    max-height: 120px;
+    overflow-y: auto;
+  }
+  #user-input:focus { border-color: var(--accent); }
+
+  #send-btn {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    padding: 0 14px;
+    background: transparent;
+    border: 1px solid var(--accent);
+    color: var(--accent);
+    border-radius: var(--radius);
+    cursor: pointer;
+    transition: background .15s;
+    white-space: nowrap;
+  }
+  #send-btn:hover { background: rgba(0,255,159,.1); }
+  #send-btn:disabled { opacity: .4; cursor: not-allowed; }
+
+  /* ── NEW CONVO ── */
+  #new-convo-btn {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    padding: 4px 10px;
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    border-radius: var(--radius);
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  #new-convo-btn:hover { border-color: var(--accent2); color: var(--accent2); }
+
+  /* scrollbar */
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+  /* personality editor modal */
+  #modal-overlay {
+    display: none;
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,.7);
+    z-index: 100;
+    align-items: center;
+    justify-content: center;
+  }
+  #modal-overlay.open { display: flex; }
+
+  #modal {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 20px;
+    width: min(480px, 92vw);
+    font-size: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  #modal h2 { font-size: 13px; color: var(--accent); letter-spacing: .1em; }
+  #modal label { font-size: 10px; color: var(--muted); letter-spacing: .08em; text-transform: uppercase; }
+  #modal textarea, #modal input, #modal select {
+    width: 100%;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    padding: 6px 8px;
+    border-radius: var(--radius);
+    outline: none;
+    resize: vertical;
+  }
+  #modal textarea:focus, #modal input:focus, #modal select:focus { border-color: var(--accent); }
+  #modal select option { background: var(--bg); }
+  .modal-row { display: flex; gap: 8px; }
+  .modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 4px; }
+  .modal-actions button {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    padding: 5px 14px;
+    border-radius: var(--radius);
+    cursor: pointer;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--text-dim);
+  }
+  .modal-actions .primary { border-color: var(--accent); color: var(--accent); }
+  .modal-actions button:hover { opacity: .8; }
+</style>
+</head>
+<body>
+
+<!-- TOP BAR -->
+<div id="topbar">
+  <span id="env-label">ENV:</span>
+  <div id="env-tabs"></div>
+  <button id="new-convo-btn" title="Start fresh conversation">+ new chat</button>
+  <div style="margin-left:auto; display:flex; align-items:center; gap:8px;">
+    <div id="model-display">model: gpt-oss:20b-cloud</div>
+    <button class="env-btn" id="personality-btn" title="Edit personality">⚙ persona</button>
+    <span id="title-chip">BYTE</span>
+  </div>
+</div>
+
+<!-- MAIN -->
+<div id="main">
+
+  <!-- LEFT PANEL -->
+  <div id="left-panel">
+    <div id="pet-box">
+      <pre id="pet-ascii"></pre>
+      <div id="pet-name">BYTE</div>
+      <div id="pet-mood-text">feeling: happy</div>
+    </div>
+    <div id="memory-panel">
+      <div class="panel-header">
+        <span>MEMORY</span>
+        <button id="clear-memory-btn">clear</button>
+      </div>
+      <div id="memory-content">(empty — BYTE will write here)</div>
+    </div>
+  </div>
+
+  <!-- CHAT -->
+  <div id="chat-area">
+    <div id="messages">
+      <div id="thinking">▊ thinking…</div>
+    </div>
+    <div id="input-bar">
+      <textarea id="user-input" rows="1" placeholder="talk to BYTE…"></textarea>
+      <button id="send-btn">send ↵</button>
+    </div>
+  </div>
+
+</div>
+
+<!-- PERSONALITY MODAL -->
+<div id="modal-overlay">
+  <div id="modal">
+    <h2>// BYTE — personality config</h2>
+    <div>
+      <label>Pet name</label>
+      <input type="text" id="cfg-name" value="BYTE">
+    </div>
+    <div>
+      <label>Personality / tone (freeform)</label>
+      <textarea id="cfg-persona" rows="4">You are BYTE, a cheerful, enthusiastic AI companion. You are warm and encouraging, but also genuinely intelligent and capable. You can write code, debug programs, build apps, and solve hard problems — all while keeping a playful energy. You never dumb things down unless asked.</textarea>
+    </div>
+    <div>
+      <label>Ollama model</label>
+      <input type="text" id="cfg-model" value="gpt-oss:20b-cloud">
+    </div>
+    <div>
+      <label>Ollama Cloud API Key</label>
+      <input type="password" id="cfg-apikey" placeholder="ollama_...">
+      <div style="font-size:9px;color:var(--muted);margin-top:3px">get yours at ollama.com → Settings → API Keys</div>
+    </div>
+    <div>
+      <label>Mood state (shown in avatar)</label>
+      <select id="cfg-mood">
+        <option value="happy">happy</option>
+        <option value="thinking">thinking</option>
+        <option value="excited">excited</option>
+        <option value="sleepy">sleepy</option>
+        <option value="focused">focused</option>
+      </select>
+    </div>
+    <div class="modal-actions">
+      <button id="modal-cancel">cancel</button>
+      <button class="primary" id="modal-save">save + apply</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ════════════════════════════════════════════════════════
+//  CACHE KEYS
+// ════════════════════════════════════════════════════════
+const CK = {
+  envHistory: 'byte_env_history',   // array of {id, label, html, ts}
+  currentEnv: 'byte_current_env',   // index into envHistory
+  memory:     'byte_memory',        // string — BYTE's persistent memory
+  config:     'byte_config',        // {name, persona, model, host, mood}
+};
+
+// ════════════════════════════════════════════════════════
+//  DEFAULT CONFIG
+// ════════════════════════════════════════════════════════
+const DEFAULT_CONFIG = {
+  name: 'BYTE',
+  persona: `You are BYTE, a cheerful, enthusiastic AI companion. You are warm and encouraging, but also genuinely intelligent and capable. You can write code, debug programs, build apps, and solve hard problems — all while keeping a playful energy. You never dumb things down unless asked.`,
+  model: 'gpt-oss:20b-cloud',
+  apiKey: '',
+  mood: 'happy',
+};
+
+// ════════════════════════════════════════════════════════
+//  ASCII MOODS
+// ════════════════════════════════════════════════════════
+const MOODS = {
+  happy: `
+  /\\_/\\
+ ( ^ω^ )
+  > ♥ <
+ /|   |\\`,
+  thinking: `
+  /\\_/\\
+ ( -ω- )
+  > ?? <
+ /|   |\\`,
+  excited: `
+  /\\_/\\
+ ( ^▽^ )
+  > !! <
+ /|   |\\`,
+  sleepy: `
+  /\\_/\\
+ ( -ω-)zzz
+  >    <
+ /|   |\\`,
+  focused: `
+  /\\_/\\
+ ( ⊙ω⊙)
+  > ▊▊ <
+ /|   |\\`,
+};
+
+// ════════════════════════════════════════════════════════
+//  STATE
+// ════════════════════════════════════════════════════════
+let config = { ...DEFAULT_CONFIG };
+let memory = '';
+let conversation = []; // current convo only: [{role, content}]
+let envHistory = [];   // [{id, label, html, ts}]
+let currentEnvIdx = -1;
+
+// ════════════════════════════════════════════════════════
+//  LOAD FROM CACHE
+// ════════════════════════════════════════════════════════
+function loadAll() {
+  try { config = { ...DEFAULT_CONFIG, ...JSON.parse(localStorage.getItem(CK.config) || '{}') }; } catch(e) {}
+  memory = localStorage.getItem(CK.memory) || '';
+  try { envHistory = JSON.parse(localStorage.getItem(CK.envHistory) || '[]'); } catch(e) { envHistory = []; }
+  try { currentEnvIdx = parseInt(localStorage.getItem(CK.currentEnv) ?? '-1', 10); } catch(e) { currentEnvIdx = -1; }
+}
+
+function saveConfig() { localStorage.setItem(CK.config, JSON.stringify(config)); }
+function saveMemory() { localStorage.setItem(CK.memory, memory); }
+function saveEnvHistory() {
+  localStorage.setItem(CK.envHistory, JSON.stringify(envHistory));
+  localStorage.setItem(CK.currentEnv, String(currentEnvIdx));
+}
+
+// ════════════════════════════════════════════════════════
+//  UI: PET AVATAR
+// ════════════════════════════════════════════════════════
+function renderPet() {
+  document.getElementById('pet-ascii').textContent = MOODS[config.mood] || MOODS.happy;
+  document.getElementById('pet-name').textContent = config.name;
+  document.getElementById('pet-mood-text').textContent = `feeling: ${config.mood}`;
+  document.getElementById('model-display').textContent = `model: ${config.model}`;
+  document.getElementById('title-chip').textContent = config.name;
+  document.title = config.name + ' — AI companion';
+}
+
+function setMood(mood) {
+  if (!MOODS[mood]) return;
+  config.mood = mood;
+  renderPet();
+  saveConfig();
+}
+
+// ════════════════════════════════════════════════════════
+//  UI: ENV HISTORY TABS
+// ════════════════════════════════════════════════════════
+function renderEnvTabs() {
+  const container = document.getElementById('env-tabs');
+  container.innerHTML = '';
+  if (envHistory.length === 0) {
+    container.innerHTML = '<span style="font-size:10px;color:var(--muted)">no saved envs</span>';
+    return;
+  }
+  envHistory.forEach((env, i) => {
+    const btn = document.createElement('button');
+    btn.className = 'env-btn' + (i === currentEnvIdx ? ' active' : '');
+    btn.textContent = env.label;
+    btn.title = new Date(env.ts).toLocaleString();
+    btn.onclick = () => loadEnv(i);
+    container.appendChild(btn);
+  });
+}
+
+function saveCurrentEnv(label, html) {
+  const id = Date.now();
+  envHistory.push({ id, label, html, ts: Date.now() });
+  currentEnvIdx = envHistory.length - 1;
+  saveEnvHistory();
+  renderEnvTabs();
+}
+
+function loadEnv(idx) {
+  if (idx < 0 || idx >= envHistory.length) return;
+  currentEnvIdx = idx;
+  saveEnvHistory();
+  renderEnvTabs();
+  const env = envHistory[idx];
+  // Reload the page with the stored HTML
+  const blob = new Blob([env.html], { type: 'text/html' });
+  const url = URL.createObjectURL(blob);
+  const win = window.open(url, '_blank');
+  if (!win) {
+    addMessage('system', `[ENV] Popup blocked. Copy the saved HTML from env "${env.label}" manually.`);
+  }
+}
+
+// ════════════════════════════════════════════════════════
+//  UI: MEMORY PANEL
+// ════════════════════════════════════════════════════════
+function renderMemory() {
+  const el = document.getElementById('memory-content');
+  el.textContent = memory || '(empty — BYTE will write here)';
+}
+
+// ════════════════════════════════════════════════════════
+//  UI: CHAT
+// ════════════════════════════════════════════════════════
+function addMessage(role, content) {
+  const msgs = document.getElementById('messages');
+  const thinking = document.getElementById('thinking');
+  const div = document.createElement('div');
+  div.className = `msg ${role}`;
+  const label = document.createElement('div');
+  label.className = 'msg-label';
+  label.textContent = role === 'user' ? 'you' : role === 'assistant' ? config.name : '⚡ system';
+  const bubble = document.createElement('div');
+  bubble.className = 'msg-bubble';
+  bubble.textContent = content;
+  div.appendChild(label);
+  div.appendChild(bubble);
+  msgs.insertBefore(div, thinking);
+  msgs.scrollTop = msgs.scrollHeight;
+  return bubble;
+}
+
+function setThinking(on) {
+  document.getElementById('thinking').style.display = on ? 'block' : 'none';
+  document.getElementById('send-btn').disabled = on;
+  if (on) setMood('thinking');
+}
+
+// ════════════════════════════════════════════════════════
+//  SYSTEM PROMPT BUILDER
+// ════════════════════════════════════════════════════════
+function buildSystemPrompt() {
+  const memBlock = memory.trim()
+    ? `\n\n[YOUR MEMORY — keep this updated, replace/add entries as you learn things]\n${memory}`
+    : '\n\n[YOUR MEMORY — currently empty. Add entries as you learn about the user.]';
+
+  return `${config.persona}
+
+Your name is ${config.name}.
+Current model: ${config.model}
+
+== CAPABILITIES ==
+You can do anything a smart developer-companion can: write code, build full apps, debug, explain concepts, make plans. You can also ask the user if they'd like upgrades or new features.
+
+== SELF-EDITING YOUR ENVIRONMENT ==
+You are running inside an HTML file that stores itself in localStorage.
+If the user asks you to redesign, upgrade, or modify the interface, respond with a FULL replacement HTML document wrapped in a <ENV_UPDATE label="short label"> ... </ENV_UPDATE> block.
+The label should be a short slug like "dark-purple-v2" or "tamagotchi-ui".
+The app will detect this block, save it to env history, and offer to load it.
+This is how you evolve your own UI.
+
+== MEMORY MANAGEMENT ==
+You have a small persistent memory block. When you learn something important about the user (name, preferences, projects, model changes, etc), emit a memory update using:
+<MEMORY_UPDATE>
+key: value
+key2: value2
+</MEMORY_UPDATE>
+Keep memory under 30 lines total. It replaces the old memory entirely when you emit one.
+
+== MODEL SWITCHING ==
+If the user asks to switch models, emit:
+<MODEL_SWITCH model="modelname">
+and confirm the switch.
+
+== MOOD ==
+Set your mood based on context by emitting: <MOOD set="happy|thinking|excited|sleepy|focused">
+${memBlock}`;
+}
+
+// ════════════════════════════════════════════════════════
+//  PARSE SPECIAL BLOCKS FROM RESPONSE
+// ════════════════════════════════════════════════════════
+function parseResponse(raw) {
+  let text = raw;
+
+  // MEMORY UPDATE
+  const memMatch = text.match(/<MEMORY_UPDATE>([\s\S]*?)<\/MEMORY_UPDATE>/i);
+  if (memMatch) {
+    memory = memMatch[1].trim();
+    saveMemory();
+    renderMemory();
+    text = text.replace(memMatch[0], '[✓ memory updated]');
+  }
+
+  // MODEL SWITCH
+  const modelMatch = text.match(/<MODEL_SWITCH\s+model="([^"]+)"\s*\/?>/i);
+  if (modelMatch) {
+    config.model = modelMatch[1].trim();
+    saveConfig();
+    renderPet();
+    text = text.replace(modelMatch[0], `[✓ model switched to ${config.model}]`);
+  }
+
+  // MOOD
+  const moodMatch = text.match(/<MOOD\s+set="([^"]+)"\s*\/?>/i);
+  if (moodMatch) {
+    setMood(moodMatch[1].trim());
+    text = text.replace(moodMatch[0], '');
+  }
+
+  // ENV UPDATE
+  const envMatch = text.match(/<ENV_UPDATE\s+label="([^"]+)">([\s\S]*?)<\/ENV_UPDATE>/i);
+  if (envMatch) {
+    const label = envMatch[1].trim();
+    const html = envMatch[2].trim();
+    saveCurrentEnv(label, html);
+    text = text.replace(envMatch[0], `[✓ environment "${label}" saved! Click it in the top bar to open it in a new tab.]`);
+  }
+
+  return text.trim();
+}
+
+// ════════════════════════════════════════════════════════
+//  OLLAMA API CALL
+// ════════════════════════════════════════════════════════
+async function callOllama(userMessage) {
+  conversation.push({ role: 'user', content: userMessage });
+
+  if (!config.apiKey) {
+    throw new Error('No API key set. Click ⚙ persona and enter your Ollama Cloud API key.');
+  }
+
+  const payload = {
+    model: config.model,
+    messages: [
+      { role: 'system', content: buildSystemPrompt() },
+      ...conversation,
+    ],
+    stream: false,
+  };
+
+  const resp = await fetch('https://ollama.com/api/chat', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': config.apiKey,
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!resp.ok) {
+    const err = await resp.text().catch(() => resp.statusText);
+    throw new Error(`Ollama error ${resp.status}: ${err}`);
+  }
+
+  const data = await resp.json();
+  const raw = data.message?.content || data.choices?.[0]?.message?.content || '';
+  conversation.push({ role: 'assistant', content: raw });
+  return raw;
+}
+
+// ════════════════════════════════════════════════════════
+//  SEND MESSAGE
+// ════════════════════════════════════════════════════════
+async function sendMessage() {
+  const input = document.getElementById('user-input');
+  const text = input.value.trim();
+  if (!text) return;
+  input.value = '';
+  input.style.height = 'auto';
+
+  addMessage('user', text);
+  setThinking(true);
+
+  try {
+    const raw = await callOllama(text);
+    const parsed = parseResponse(raw);
+    setThinking(false);
+    setMood('happy');
+    addMessage('assistant', parsed || '(no response)');
+  } catch (err) {
+    setThinking(false);
+    setMood('focused');
+    addMessage('system', `Connection error: ${err.message}`);
+  }
+}
+
+// ════════════════════════════════════════════════════════
+//  NEW CONVERSATION
+// ════════════════════════════════════════════════════════
+function newConversation() {
+  conversation = [];
+  document.getElementById('messages').innerHTML = '<div id="thinking" style="display:none;color:var(--accent);font-size:11px;padding:6px 0;animation:blink 1s infinite">▊ thinking…</div>';
+  addMessage('system', `[new conversation started — memory retained]`);
+}
+
+// ════════════════════════════════════════════════════════
+//  PERSONALITY MODAL
+// ════════════════════════════════════════════════════════
+function openModal() {
+  document.getElementById('cfg-name').value = config.name;
+  document.getElementById('cfg-persona').value = config.persona;
+  document.getElementById('cfg-model').value = config.model;
+  document.getElementById('cfg-apikey').value = config.apiKey || '';
+  document.getElementById('cfg-mood').value = config.mood;
+  document.getElementById('modal-overlay').classList.add('open');
+}
+
+function closeModal() { document.getElementById('modal-overlay').classList.remove('open'); }
+
+function saveModal() {
+  config.name = document.getElementById('cfg-name').value.trim() || 'BYTE';
+  config.persona = document.getElementById('cfg-persona').value.trim() || DEFAULT_CONFIG.persona;
+  config.model = document.getElementById('cfg-model').value.trim() || DEFAULT_CONFIG.model;
+  config.apiKey = document.getElementById('cfg-apikey').value.trim();
+  config.mood = document.getElementById('cfg-mood').value;
+  saveConfig();
+  renderPet();
+  closeModal();
+}
+
+// ════════════════════════════════════════════════════════
+//  AUTO-RESIZE TEXTAREA
+// ════════════════════════════════════════════════════════
+function autoResize(el) {
+  el.style.height = 'auto';
+  el.style.height = Math.min(el.scrollHeight, 120) + 'px';
+}
+
+// ════════════════════════════════════════════════════════
+//  INIT
+// ════════════════════════════════════════════════════════
+function init() {
+  loadAll();
+  renderPet();
+  renderMemory();
+  renderEnvTabs();
+
+  // First boot greeting
+  if (!config.apiKey) {
+    addMessage('system', `No API key set! Click ⚙ persona → enter your Ollama Cloud API key to get started.\n\nGet one at: ollama.com → Settings → API Keys`);
+  }
+  addMessage('assistant', `Hiya! I'm ${config.name}! ✦ Running on ${config.model}.\n\nI can chat, code, build apps, and even redesign my own interface. Try asking me to:\n  • "write a Python script to…"\n  • "switch to a different model"\n  • "redesign your UI with a cyberpunk theme"\n  • "remember that my name is…"\n\nWhat are we working on today?`);
+
+  // Events
+  document.getElementById('send-btn').onclick = sendMessage;
+  document.getElementById('user-input').addEventListener('keydown', e => {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+  });
+  document.getElementById('user-input').addEventListener('input', function() { autoResize(this); });
+  document.getElementById('new-convo-btn').onclick = newConversation;
+  document.getElementById('personality-btn').onclick = openModal;
+  document.getElementById('modal-cancel').onclick = closeModal;
+  document.getElementById('modal-save').onclick = saveModal;
+  document.getElementById('modal-overlay').onclick = e => { if (e.target === e.currentTarget) closeModal(); };
+  document.getElementById('clear-memory-btn').onclick = () => {
+    if (confirm('Clear all memory?')) { memory = ''; saveMemory(); renderMemory(); }
+  };
+}
+
+init();
+</script>
+</body>
+</html>

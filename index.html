@@ -423,17 +423,17 @@
     </div>
     <div>
       <label>Ollama model</label>
-      <input type="text" id="cfg-model" value="gpt-oss:20b-cloud">
+      <input type="text" id="cfg-model" value="llama2">
     </div>
     <div>
       <label>Ollama Cloud API Key</label>
-      <input type="password" id="cfg-apikey" placeholder="ollama_...">
-      <div style="font-size:9px;color:var(--muted);margin-top:3px">get yours at ollama.com → Settings → API Keys</div>
+      <input type="password" id="cfg-apikey" placeholder="(optional for local Ollama)">
+      <div style="font-size:9px;color:var(--muted);margin-top:3px">leave blank for local Ollama, or get a cloud key at ollama.com → Settings → API Keys</div>
     </div>
     <div>
       <label>API Endpoint</label>
-      <input type="text" id="cfg-endpoint" value="https://api.ollama.cloud/v1/chat/completions">
-      <div style="font-size:9px;color:var(--muted);margin-top:3px">e.g., https://api.ollama.cloud/v1/chat/completions or http://localhost:11434/api/chat</div>
+      <input type="text" id="cfg-endpoint" value="http://localhost:11434/api/chat">
+      <div style="font-size:9px;color:var(--muted);margin-top:3px">local: http://localhost:11434/api/chat | cloud: https://api.ollama.cloud/v1/chat/completions</div>
     </div>
     <div>
       <label>Mood state (shown in avatar)</label>
@@ -469,9 +469,9 @@ const CK = {
 const DEFAULT_CONFIG = {
   name: 'BYTE',
   persona: `You are BYTE, a cheerful, enthusiastic AI companion. You are warm and encouraging, but also genuinely intelligent and capable. You can write code, debug programs, build apps, and solve hard problems — all while keeping a playful energy. You never dumb things down unless asked.`,
-  model: 'gpt-oss:20b-cloud',
+  model: 'llama2',
   apiKey: '',
-  apiEndpoint: 'https://api.ollama.cloud/v1/chat/completions',
+  apiEndpoint: 'http://localhost:11434/api/chat',
   mood: 'happy',
 };
 
@@ -719,7 +719,7 @@ function parseResponse(raw) {
 async function callOllama(userMessage) {
   conversation.push({ role: 'user', content: userMessage });
 
-  if (!config.apiKey) {
+  if (!config.apiKey && !config.apiEndpoint.includes('localhost')) {
     throw new Error('No API key set. Click ⚙ persona and enter your Ollama Cloud API key.');
   }
 
@@ -732,35 +732,44 @@ async function callOllama(userMessage) {
     stream: false,
   };
 
-  const endpoint = config.apiEndpoint || 'https://api.ollama.cloud/v1/chat/completions';
+  const endpoint = config.apiEndpoint || 'http://localhost:11434/api/chat';
   const headers = {
     'Content-Type': 'application/json',
   };
   
-  // Add Authorization header with Bearer token format
+  // Add Authorization header with Bearer token format if API key exists
   if (config.apiKey) {
     headers['Authorization'] = config.apiKey.startsWith('Bearer ') ? config.apiKey : `Bearer ${config.apiKey}`;
   }
 
-  const resp = await fetch(endpoint, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify(payload),
-  });
+  try {
+    const resp = await fetch(endpoint, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(payload),
+    });
 
-  if (!resp.ok) {
-    const err = await resp.text().catch(() => resp.statusText);
-    throw new Error(`API error ${resp.status}: ${err}`);
-  }
+    if (!resp.ok) {
+      const err = await resp.text().catch(() => resp.statusText);
+      console.error('API Error:', resp.status, err);
+      throw new Error(`API error ${resp.status}: ${err}`);
+    }
 
-  const data = await resp.json();
-  // Handle both OpenAI-format and Ollama-format responses
-  const raw = data.message?.content || data.choices?.[0]?.message?.content || '';
-  if (!raw) {
-    throw new Error('Empty response from API');
+    const data = await resp.json();
+    console.log('API Response:', data);
+    
+    // Handle both OpenAI-format and Ollama-format responses
+    const raw = data.message?.content || data.choices?.[0]?.message?.content || '';
+    if (!raw) {
+      console.warn('Empty response:', data);
+      throw new Error('Empty response from API');
+    }
+    conversation.push({ role: 'assistant', content: raw });
+    return raw;
+  } catch (e) {
+    console.error('Fetch error:', e);
+    throw e;
   }
-  conversation.push({ role: 'assistant', content: raw });
-  return raw;
 }
 
 // ════════════════════════════════════════════════════════
@@ -806,7 +815,7 @@ function openModal() {
   document.getElementById('cfg-persona').value = config.persona;
   document.getElementById('cfg-model').value = config.model;
   document.getElementById('cfg-apikey').value = config.apiKey || '';
-  document.getElementById('cfg-endpoint').value = config.apiEndpoint || 'https://api.ollama.cloud/v1/chat/completions';
+  document.getElementById('cfg-endpoint').value = config.apiEndpoint || 'http://localhost:11434/api/chat';
   document.getElementById('cfg-mood').value = config.mood;
   document.getElementById('modal-overlay').classList.add('open');
 }
@@ -843,7 +852,7 @@ function init() {
   renderEnvTabs();
 
   // First boot greeting
-  if (!config.apiKey) {
+  if (!config.apiKey && !config.apiEndpoint.includes('localhost')) {
     addMessage('system', `No API key set! Click ⚙ persona → enter your Ollama Cloud API key to get started.\n\nGet one at: ollama.com → Settings → API Keys`);
   }
   addMessage('assistant', `Hiya! I'm ${config.name}! ✦ Running on ${config.model}.\n\nI can chat, code, build apps, and even redesign my own interface. Try asking me to:\n  • "write a Python script to…"\n  • "switch to a different model"\n  • "redesign your UI with a cyberpunk theme"\n  • "remember that my name is…"\n\nWhat are we working on today?`);
